@@ -1,40 +1,49 @@
 'use strict';
 
 var Users = require('../models/users.js');
+var Bing = require('node-bing-api')({
+	accKey: "T0uVqd6NrcUlHy3+gXp3MTIbYdsy5AaRGh0JzBjde88"
+});
+var url = require('url');
+var Search = require('../models/search');
 
-function ClickHandler () {
+function ClickHandler() {
 
-	this.getClicks = function (req, res) {
-		Users
-			.findOne({ 'github.id': req.user.github.id }, { '_id': false })
-			.exec(function (err, result) {
-				if (err) { throw err; }
-
-				res.json(result.nbrClicks);
+	this.search = function(req, res) {
+		var url_parts = url.parse(req.url, true);
+		var query = url_parts.query;
+		if (query.offset != undefined) {
+			console.log(query);
+			Bing.images(query.search_string, {
+				skip: query.offset
+			}, function(error, response, body) {
+				var newSearch = new Search();
+				newSearch.term = query.search_string;
+				newSearch.when = new Date();
+				newSearch.save(function(err) {
+					if (err) {
+						throw err;
+					}
+				});
+				res.json(body);
 			});
-	};
+		} else {
+			res.json('Please include offset and search string.');
+		}
 
-	this.addClick = function (req, res) {
-		Users
-			.findOneAndUpdate({ 'github.id': req.user.github.id }, { $inc: { 'nbrClicks.clicks': 1 } })
-			.exec(function (err, result) {
-					if (err) { throw err; }
+	}
 
-					res.json(result.nbrClicks);
-				}
-			);
-	};
-
-	this.resetClicks = function (req, res) {
-		Users
-			.findOneAndUpdate({ 'github.id': req.user.github.id }, { 'nbrClicks.clicks': 0 })
-			.exec(function (err, result) {
-					if (err) { throw err; }
-
-					res.json(result.nbrClicks);
-				}
-			);
-	};
+	this.getSearches = function(req, res) {
+		Search.find({}, {
+			'_id': false,
+			'__v': false
+		}).sort('-when').limit(10).exec(function(err, searches) {
+			if (err) {
+				throw err;
+			}
+			res.json(searches);
+		})
+	}
 
 }
 
